@@ -10,3 +10,5 @@ The scripts are initialization and helper functions for the triggers and aliases
 To use this repository, download it and use Mudlet's package installer to import the zip file.  To get rid of it, use the package installer to uninstall it.
 
 Raise issues and bugs please and I'll look into them.
+
+Oh, in case I forget, this is at \CJH\Misc\Games\CJH_Mudlet_Git
