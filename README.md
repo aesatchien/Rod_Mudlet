@@ -7,7 +7,8 @@ The triggers are a bit harder - to get the fight trackers to work, you may have 
 The aliases are all self-explanatory in how they work - just type the string the alias is waiting for.
 The scripts are initialization and helper functions for the triggers and aliases.  Instructive to read.
 
-To use this repository, download it and use Mudlet's package installer to import the zip file.  To get rid of it, use the package installer to uninstall it.
+To use this repository, download it, extract the parent zip and use Mudlet's package installer to import the CJH_Rod_Mudlet.zip file.  To get rid of it, use the package installer to uninstall it.  
+TODO: See if we can just use an xml file because that would be a lot easier to git diff.
 
 Raise issues and bugs please and I'll look into them.
 
