@@ -12,8 +12,11 @@ This is a set of mudlet maps, scripts, triggers and aliases for Mudlet and Realm
 
 
 --The triggers are a bit harder - to get the fight trackers to work, you will have to edit the regular expressions that are watching to see your prompt and recognize the difference between the regular prompt and in-fight prompts.  It's specifically set up for my guys at the moment with "<>" in my fight prompt but not in my regular one.  I use these:
+
 prompt [Aesatchien] HP:%h/%H &CMana:%m/%M &GMvs:%v/%V &c%E &wLev:%X &R(%n:%c)&w
+
 fprompt [Achernar] HP:%h/%H &CMana:%m/%M &YSty:%S &G%L &R(%n:%c)&w <>
+
 The disarm trigger should work fine as is.  You can test it with "say some asshole DISARMS your giant sword"
 
 --The aliases are all self-explanatory in how they work - just type the string the alias is waiting for.
