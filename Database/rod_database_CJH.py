@@ -1,14 +1,78 @@
 # CJH creading functions to make a RoDpedia item database
-# TODO: make this into a class, make a web crawler, save to CSV
+# TODO: make this into a class, fix AC display, save to Excel with column widths, make smart queries and summary stats
 
-from bs4 import BeautifulSoup
 import re
 import requests
+import pickle
+import pandas as pd
+from bs4 import BeautifulSoup
 
-url1 ='https://rodpedia.realmsofdespair.info/wiki/A_black_silk_belt'
-url2 ='https://rodpedia.realmsofdespair.info/wiki/A_brigand%27s_dagger'
-def get_clean_url(url):
+# -------- WEB SECTION -----------
+def get_soup(url):
+    """Building block function for getting a soup from a url."""
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, features="lxml")
+    return soup
 
+def get_description(url):
+    """Quick way to check the basic HTML description of an item."""
+    soup = get_soup(url)
+    for script in soup(['script','style']):
+        script.extract()
+    test = soup.get_text()
+    cleaned = re.sub(r'(\n)+', r'\n', test)
+    description_text = cleaned.split('Retrieved from')[0]
+    return description_text
+
+def get_valid_item_urls(url):
+    """Takes a Rodpedia index page and converts to a list of valid item urls."""
+    soup = get_soup(url)
+    header = 'https://rodpedia.realmsofdespair.info'
+    badstrings = {':', 'Categor', 'index', 'RoDpedia', 'http', '#', 'Main_Page'}
+    url_list = []
+    bad_url_list = []
+    for a in soup.find_all('a', href=True):
+        if any(bad in str(a) for bad in badstrings):
+            #print('**BAD URL**:', a['href'])
+            bad_url_list.append(header + a['href'])
+        else:
+            #print('ITEM:', a['href'])
+            url_list.append(header + a['href'])
+    return[url_list,bad_url_list]
+
+def get_complete_url_list():
+    """Builds a list of every valid Rodpedia item"""
+    all_urls = []
+    for url in item_urls:
+        all_urls.append(get_valid_item_urls(url)[0])
+    flat_list = [item for sublist in all_urls for item in sublist]
+    return flat_list
+
+# This is the list of everything on Rodpedia as of 6/20/2019
+item_urls = ['https://rodpedia.realmsofdespair.info/wiki/Category:Items',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Black+silk+belt%2C+a',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Chained+dragonhide+wristlet',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Dented+vambraces+of+a+fallen+warrior',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Flying+broom%2C+A',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Heaume+of+the+Venerable',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Leather+restraints',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Ninja+gi%2C+a',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Pop+Items',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Seal+of+Shadows%2C+a',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Small%2C+copper+key%2C+a',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Tattered+robes+of+intolerance%2C+the',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=White+scale+mail',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=brand+of+Doom',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=extradimensional+portal',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=ice+cold+glass+of+lemonade',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=old+suit+of+leather+armor',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=rolling+pin',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=spiked+dog+collar',
+             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=wooden+post']
+
+# -------- ITEM CREATION SECTION -----------
+def make_item_from_url(url):
+    """Make an item from an Rodpedia item url."""
     soup = get_soup(url)
     # strip out the styling crap
     for script in soup(['script','style']):
@@ -85,88 +149,70 @@ def get_clean_url(url):
                 'GLANCE_DESCRIPTION':glance_desc,
                 'EXAM_DESCRIPTION': exam_desc,
                 'CATEGORIES':categories,
-                 'HTTP_DESCRIPTION':description_text}
+                'HTTP_DESCRIPTION':description_text}
     item_dict.update(other_keys)
 
     return item_dict
 
 def check_split(thing):
+    """Helper function to deal with multi-line regexp searches of Rodpedia entries."""
     if len(thing)>0:
         return thing[0].split()
     else:
         return ""
 
 def check_length(thing):
+    """Helper function to deal with single-line regexp searches of Rodpedia entries."""
     if len(thing)>0:
         return thing[0]
     else:
         return ""
 
-def get_soup(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, features="lxml")
-    return soup
+def print_item(item):
+    """Takes an item (dictionary) and prints the it in useful format"""
+    print("\nItem name: {}\nLevel: {}\tWorn: {} \tType: {} {}"
+          .format(item['ITEM_NAME'],item['LEVEL'],item['WORN'],item['ITEM_TYPE'],item['WEAPON_TYPE']))
+    print("AC: {}\tDamage:{}".format(item['ARMOR_CLASS'],item['DAMAGE']))
+    print("STR: {} INT: {} WIS: {} DEX: {} CON: {} CHA: LCK: {} HIT: {} DMG: {}"
+          .format(item['STR'],item['INT'],item['WIS'],item['DEX'],item['CON'],item['CHA'],item['LCK'],item['HIT_ROLL'],item['DAMAGE_ROLL']))
+    print("HP: {}\t MANA: {}".format(item['HP'], item['MANA']))
+    print("Area: {}\t Mob: {}".format(item['Area'], item['Mob']))
 
-def get_description(url):
-    soup = get_soup(url)
-    for script in soup(['script','style']):
-        script.extract()
-    test = soup.get_text()
-    cleaned = re.sub(r'(\n)+', r'\n', test)
-    description_text = cleaned.split('Retrieved from')[0]
-    return description_text
+def grep(items, name):
+    """Intial method for grepping the database"""
+    for ix, item in enumerate(items):
+        if name.lower() in item['ITEM_NAME'].lower():
+            print("\nMatch ID: {}".format(ix),end='')
+            print_item(item)
 
-def get_valid_item_urls(url):
-    soup = get_soup(url)
-    header = 'https://rodpedia.realmsofdespair.info'
-    badstrings = {':', 'Categor', 'index', 'RoDpedia', 'http', '#', 'Main_Page'}
-    url_list = []
-    bad_url_list = []
-    for a in soup.find_all('a', href=True):
-        if any(bad in str(a) for bad in badstrings):
-            #print('**BAD URL**:', a['href'])
-            bad_url_list.append(header + a['href'])
-        else:
-            #print('ITEM:', a['href'])
-            url_list.append(header + a['href'])
-    return[url_list,bad_url_list]
+def numerate(item):
+    """Just go though everything and if it can be changed to an int, do it"""
+    # note i could not loop through db and reassign, i had to make a blank and populate it with this
+    temp_item = item.copy()
+    for key in temp_item:
+        #print(key + ' : ' + str(item[key]))
+        try:
+            temp_item[key] = int(temp_item[key])
+            #print("Converted {} to int".format(temp_item[key]))
+        except ValueError as verr:
+            #print ("Value error on converting {}".format(temp_item[key]))
+            pass  # do job to handle: s does not contain anything convertible to int
+        except Exception as ex:
+            #print ("Exception on converting {}".format(temp_item[key]))
+            pass  # do job to handle: Exception occurred while converting to int
+    return temp_item
 
-def get_complete_url_list():
-    all_urls = []
-    for url in item_urls:
-        all_urls.append(get_valid_item_urls(url)[0])
-    flat_list = [item for sublist in all_urls for item in sublist]
-    return flat_list
-
-item_urls = ['https://rodpedia.realmsofdespair.info/wiki/Category:Items',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Black+silk+belt%2C+a',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Chained+dragonhide+wristlet',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Dented+vambraces+of+a+fallen+warrior',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Flying+broom%2C+A',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Heaume+of+the+Venerable',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Leather+restraints',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Ninja+gi%2C+a',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Pop+Items',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Seal+of+Shadows%2C+a',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Small%2C+copper+key%2C+a',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=Tattered+robes+of+intolerance%2C+the',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=White+scale+mail',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=brand+of+Doom',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=extradimensional+portal',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=ice+cold+glass+of+lemonade',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=old+suit+of+leather+armor',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=rolling+pin',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=spiked+dog+collar',
-             'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=wooden+post']
-
+# -------- ITEM ATTRIBUTE PROCESSING SECTION -----------
 # messed up and brought in a trailing '.' sometimes
 def fix_tuples(item):
+    """Fixer function because I originally brought in a trailing period on AFFECTS_LIST"""
     affects_list = [list(elem) for elem in item['AFFECTS_LIST']]
     for i in affects_list:
         i[1] = re.sub(r'\.', r'', i[1])
     return affects_list
 
 def get_attribute(item,attribute):
+    """Converts tuples to list and returns the value of an attribute, e.g. 'damage roll' """
     result = ""
     affects_list = [list(elem) for elem in item['AFFECTS_LIST']]
     for i in affects_list:
@@ -174,3 +220,59 @@ def get_attribute(item,attribute):
             result = i[1]
     return result
     #item['AFFECTS_LIST'] = affects_list
+
+
+# -------- PICKLE SECTION -----------
+def save_db(items,outfile=''):
+    """Save the database to pkl format"""
+    if outfile == '':
+        outfile = 'RoD_Database.pkl'
+    with open(outfile, 'wb') as fp:
+        pickle.dump(items, fp)
+
+def load_db(outfile=''):
+    """Save the database to pkl format"""
+    if outfile == '':
+        outfile = 'RoD_Database.pkl'
+    with open(outfile, 'rb') as fp:
+        items = pickle.load(fp)
+    return items
+
+# -------- PANDAS SECTION -----------
+# columns for the pandas save
+xcel_cols = ['ITEM_NAME','LEVEL','ITEM_TYPE','WORN','ARMOR_CLASS','WEAPON_TYPE','AVERAGE_DAMAGE','STR','INT',
+        'WIS','DEX','CON','CHA','LCK','HP','MANA','HIT_ROLL','DAMAGE_ROLL','GLANCE_DESCRIPTION',
+        'SPECIAL_PROPERTIES','WEIGHT','GOLD','Area', 'AFFECTS_LIST', 'DAMAGE', 'Manufacture',
+        'Minimum Level', 'Mob', 'Out of Game', 'Pop','Known Keywords','CATEGORIES',
+        'GENRES_ALLOWED','EXAM_DESCRIPTION','HTTP_DESCRIPTION']
+
+def make_items_dataframe(items):
+    """Make a dataframe and make sure the right strings can be treated as numbers"""
+    df = pd.DataFrame(items)
+    numerics = ['LEVEL','AVERAGE_DAMAGE','STR','INT',
+        'WIS','DEX','CON','CHA','LCK','HP','MANA','HIT_ROLL','DAMAGE_ROLL','WEIGHT','GOLD','Minimum Level']
+    for col in numerics:
+       df[col]= pd.to_numeric(df[col], errors='ignore')
+    return df
+
+def save_pd_to_excel(df,outfile='',sheet_name=''):
+    """Make the excel file formatted so that I never have to touch it manually"""
+    if outfile=='':
+        outfile = 'RodDatabase.xlsx'
+    if sheet_name=='':
+        sheet_name = 'CJH RoD DB v0.1 06212019'
+    writer = pd.ExcelWriter(outfile, engine='xlsxwriter')
+    df.to_excel(writer, sheet_name=sheet_name, columns=xcel_cols)
+    worksheet = writer.sheets[sheet_name]
+    # Change the column widths - default is the length of the column name
+    col_names= ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+                'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y','Z',
+                'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ']
+    for s, col in zip(xcel_cols, col_names):
+        #apprently you can't just give it a single column name - have to use 'B:B' when you mean 'B'
+        worksheet.set_column(col+':'+col, len(s)+3)
+    # Item name is the only one I'll make bigger than default
+    worksheet.set_column('B:B', 42)
+    writer.save()
+
+
