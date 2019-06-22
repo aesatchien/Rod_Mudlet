@@ -1,6 +1,6 @@
 # CJH creading functions to make a RoDpedia item database
 # TODO: make this into a class, fix AC display, save to Excel with column widths, make smart queries and summary stats
-
+# TODO - fix AC, SAVES, make simpler
 import re
 import requests
 import pickle
@@ -151,8 +151,28 @@ def make_item_from_url(url):
                 'CATEGORIES':categories,
                 'HTTP_DESCRIPTION':description_text}
     item_dict.update(other_keys)
-
     return item_dict
+
+def fix_exam(item):
+    """Originally I had tried to split the text on the Description/Exam but that was not general enough"""
+    # make the original .* not greedy with the ? - that gives us BOTH of these
+    # not sure why it doesn't work without removing the all the \n first
+    str = re.sub(r'\n', r' ', item['HTTP_DESCRIPTION'])
+    notecount=len(re.findall('Notes', str, re.MULTILINE))
+    if notecount >1:
+        #Break it apart by Notes
+        exam = re.findall('Description/Exam(.*?)Notes?', str, re.MULTILINE)
+    else:
+        #Take the whole thing
+        exam = re.findall('Description/Exam(.*)', str)
+    match = ''
+    if len(exam)>1:
+        match = exam[1].strip()
+    elif len(exam) > 0:
+        match = exam[0].strip()
+    else:
+        match=''
+    return match
 
 def check_split(thing):
     """Helper function to deal with multi-line regexp searches of Rodpedia entries."""
@@ -168,6 +188,13 @@ def check_length(thing):
     else:
         return ""
 
+def check_int(thing):
+    """Helper function to deal with single-line regexp searches of Rodpedia entries."""
+    if len(thing) > 0:
+        return int(thing[0])
+    else:
+        return ""
+
 def print_item(item):
     """Takes an item (dictionary) and prints the it in useful format"""
     print("\nItem name: {}\nLevel: {}\tWorn: {} \tType: {} {}"
@@ -178,12 +205,21 @@ def print_item(item):
     print("HP: {}\t MANA: {}".format(item['HP'], item['MANA']))
     print("Area: {}\t Mob: {}".format(item['Area'], item['Mob']))
 
-def grep(items, name):
+def grep_name(items, name):
     """Intial method for grepping the database"""
     for ix, item in enumerate(items):
         if name.lower() in item['ITEM_NAME'].lower():
             print("\nMatch ID: {}".format(ix),end='')
             print_item(item)
+
+def grep_all(items, name):
+    """Intial method for grepping the database"""
+    for ix, item in enumerate(items):
+        for attrib in item:
+            if name.lower() in str(item[attrib]).lower():
+                print("\nMatch ID: {}".format(ix),end='')
+                print_item(item)
+                break
 
 def numerate(item):
     """Just go though everything and if it can be changed to an int, do it"""
@@ -240,19 +276,24 @@ def load_db(outfile=''):
 
 # -------- PANDAS SECTION -----------
 # columns for the pandas save
-xcel_cols = ['ITEM_NAME','LEVEL','ITEM_TYPE','WORN','ARMOR_CLASS','WEAPON_TYPE','AVERAGE_DAMAGE','STR','INT',
+xcel_cols = ['ITEM_NAME','Area','LEVEL','ITEM_TYPE','WORN','AC','WEAPON_TYPE','AVERAGE_DAMAGE','STR','INT',
         'WIS','DEX','CON','CHA','LCK','HP','MANA','HIT_ROLL','DAMAGE_ROLL','GLANCE_DESCRIPTION',
-        'SPECIAL_PROPERTIES','WEIGHT','GOLD','Area', 'AFFECTS_LIST', 'DAMAGE', 'Manufacture',
+        'SPECIAL_PROPERTIES','WEIGHT','GOLD', 'AFFECTS_LIST', 'DAMAGE', 'Manufactured',
         'Minimum Level', 'Mob', 'Out of Game', 'Pop','Known Keywords','CATEGORIES',
-        'GENRES_ALLOWED','EXAM_DESCRIPTION','HTTP_DESCRIPTION']
+        'GENRES_ALLOWED','ARMOR_CLASS','EXAM_DESCRIPTION','HTTP_DESCRIPTION']
 
-def make_items_dataframe(items):
+def make_pandas_df(items,errors='ignore'):
     """Make a dataframe and make sure the right strings can be treated as numbers"""
     df = pd.DataFrame(items)
-    numerics = ['LEVEL','AVERAGE_DAMAGE','STR','INT',
+    #order them
+    df = df[xcel_cols]
+    numerics = ['LEVEL','AC','AVERAGE_DAMAGE','STR','INT',
         'WIS','DEX','CON','CHA','LCK','HP','MANA','HIT_ROLL','DAMAGE_ROLL','WEIGHT','GOLD','Minimum Level']
     for col in numerics:
-       df[col]= pd.to_numeric(df[col], errors='ignore')
+       #for excel you want to ignore, but for using in python you need to coerce
+       #df[col]= pd.to_numeric(df[col], errors='ignore')
+       #df[col] = pd.to_numeric(df[col], errors='coerce')
+       df[col] = pd.to_numeric(df[col], errors=errors)
     return df
 
 def save_pd_to_excel(df,outfile='',sheet_name=''):
@@ -267,7 +308,7 @@ def save_pd_to_excel(df,outfile='',sheet_name=''):
     # Change the column widths - default is the length of the column name
     col_names= ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
                 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y','Z',
-                'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ']
+                'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK']
     for s, col in zip(xcel_cols, col_names):
         #apprently you can't just give it a single column name - have to use 'B:B' when you mean 'B'
         worksheet.set_column(col+':'+col, len(s)+3)
