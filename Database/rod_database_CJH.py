@@ -71,7 +71,7 @@ item_urls = ['https://rodpedia.realmsofdespair.info/wiki/Category:Items',
              'https://rodpedia.realmsofdespair.info/index.php?title=Category:Items&from=wooden+post']
 
 # -------- ITEM CREATION SECTION -----------
-def make_item_from_url(url):
+def item_from_url(url):
     """Make an item from an Rodpedia item url."""
     soup = get_soup(url)
     # strip out the styling crap
@@ -119,7 +119,6 @@ def item_from_description(description_text):
     if len(item_name) < 2:
         item_name = check_length(re.findall('(.*) - RoDpedia', description_text))
     worn = check_length(re.findall(' worn:\s+(\S*)', description_text))
-
     gold = check_length(re.findall('gold value of (\d+)', description_text))
     special_properties = check_split(re.findall('Special properties:(.*)$', description_text, re.MULTILINE))
     genres_allowed = check_split(re.findall('Genres allowed:(.*)$', description_text, re.MULTILINE))
@@ -163,7 +162,7 @@ def item_from_description(description_text):
                  'AC': ac,
                  'WEAPON_TYPE': weapon_type,
                  'AVERAGE_DAMAGE': average_damage,
-                 'VALUE': item_value({'AFFECTS_LIST': affects_list})}
+                 'VALUE': calculate_value({'AFFECTS_LIST': affects_list})}
     item_dict.update(calculated_dict)
     item_dict.update(other_dict)
     item_dict.update({'GOLD': gold,
@@ -245,13 +244,13 @@ def numerate(item):
 # -------- UTILITY SECTION -----------
 def print_item(item):
     """Takes an item (dictionary) and prints the it in useful format"""
-    print("\nItem name: {}\nLevel: {}\tWorn: {} \tType: {} {}"
-          .format(item['ITEM_NAME'].upper(),item['LEVEL'],item['WORN'].upper(),item['ITEM_TYPE'].upper(),item['WEAPON_TYPE'].upper()))
+    print("\nItem name: {}\nLevel: {}\tWorn: {} \tType: {} {} \tValue: {}"
+          .format(item['ITEM_NAME'].upper(),item['LEVEL'],item['WORN'].upper(),item['ITEM_TYPE'].upper(),item['WEAPON_TYPE'].upper(),item['VALUE']))
     print("AC: {}\tDamage:{}".format(item['ARMOR_CLASS'],item['DAMAGE']))
     print("STR: {} INT: {} WIS: {} DEX: {} CON: {} CHA: LCK: {} HIT: {} DMG: {}"
           .format(item['STR'],item['INT'],item['WIS'],item['DEX'],item['CON'],item['CHA'],item['LCK'],item['HIT_ROLL'],item['DAMAGE_ROLL']))
     print("HP: {}\t MANA: {}".format(item['HP'], item['MANA']))
-    print("Area: {}\t Mob: {}".format(item['Area'], item['Mob']))
+    print("Area: {}\t Mob: {}".format(item['AREA'], item['MOB']))
     print(flatten_affects(item))
 
 def print_web(item):
@@ -354,11 +353,11 @@ qualitative_attributes = ['armor class','affected_by','resistant:cold','resistan
                           'damage vs dragon', 'third attack', 'weight', 'susceptible:magic', 'susceptible:blunt',
                           'disarm', 'pick', 'resistant:pierce', 'wait time of mercuria', 'height',
                           'susceptible:poison', 'punch', 'damage of vindur gong', 'damage vs golem',
-                          'susceptible:paralysis', 'damage of dorn nadur', 'cost of locate object', 'scan', 'peek']
-reduced_attributes = ['mana','moves','hp']
+                          'susceptible:paralysis', 'damage of dorn nadur', 'cost of locate object', 'scan', 'peek','moves']
+reduced_attributes = ['mana','hp']
 regeneration_attributes = ['mana regeneration','hp regeneration']
 
-def item_value(item,verbose=False):
+def calculate_value(item,verbose=False):
     """Calculate an item value based on summing weighted attributes """
     affects = item['AFFECTS_LIST']
     value=0
@@ -472,5 +471,4 @@ def save_pd_to_excel(df,outfile='',sheet_name=''):
     worksheet.set_column('B:B', 42)
     worksheet.set_column('C:C', 35)
     writer.save()
-
 
