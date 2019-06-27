@@ -99,6 +99,8 @@ def item_from_description(description_text):
     # One idiot put a colon in his weight description... others put in total crap
     if len(re.findall('level (\d*)\s(.*), weight:? (\d*)', description_text, re.MULTILINE)) > 0:
         (level, item_type, weight) = re.findall('level (\d*)\s(.*), weight:? (\d*)', description_text, re.MULTILINE)[0]
+        level = safe_int(level)
+        weight = safe_int(weight)
     else:
         (level, item_type, weight) = ('', '', '')
     # check to see if it is weapon or armor
@@ -119,7 +121,7 @@ def item_from_description(description_text):
     if len(item_name) < 2:
         item_name = check_length(re.findall('(.*) - RoDpedia', description_text))
     worn = check_length(re.findall(' worn:\s+(\S*)', description_text))
-    gold = check_length(re.findall('gold value of (\d+)', description_text))
+    gold = safe_int(check_length(re.findall('gold value of (\d+)', description_text)))
     special_properties = check_split(re.findall('Special properties:(.*)$', description_text, re.MULTILINE))
     genres_allowed = check_split(re.findall('Genres allowed:(.*)$', description_text, re.MULTILINE))
     races_allowed = check_split(re.findall('Races allowed:(.*)$', description_text, re.MULTILINE))
@@ -181,7 +183,8 @@ def item_from_description(description_text):
 
 
 def fix_exam_description(item):
-    """Originally I had tried to split the text on the Description/Exam but that was not general enough"""
+    """Originally I had tried to split the text on the
+    Description/Exam but that was not general enough"""
     # make the original .* not greedy with the ? - that gives us BOTH of these
     # not sure why it doesn't work without removing the all the \n first
     str = re.sub(r'\n', r' ', item['HTTP_DESCRIPTION'])
@@ -222,8 +225,6 @@ def check_int(thing):
     else:
         return ""
 
-
-
 def numerate(item):
     """Just go though everything and if it can be changed to an int, do it"""
     # note I could not loop through db and reassign, i had to make a blank and populate it with this
@@ -250,7 +251,14 @@ def print_item(item):
     print("STR: {} INT: {} WIS: {} DEX: {} CON: {} CHA: LCK: {} HIT: {} DMG: {}"
           .format(item['STR'],item['INT'],item['WIS'],item['DEX'],item['CON'],item['CHA'],item['LCK'],item['HIT_ROLL'],item['DAMAGE_ROLL']))
     print("HP: {}\t MANA: {}".format(item['HP'], item['MANA']))
-    print("Area: {}\t Mob: {}".format(item['AREA'], item['MOB']))
+    print(f"AREA: {item['AREA']}\t MOB: {item['MOB']}")
+    genres = ''
+    for x in item['GENRES_ALLOWED']:
+        genres += x + ' '
+    races = ''
+    for x in item['RACES_ALLOWED']:
+        races += x + ' '
+    print(f'RACES: {races.strip()} \tGENRES: {genres.strip()}')
     print(flatten_affects(item))
 
 def print_web(item):
@@ -293,12 +301,14 @@ def grep_name(items, name, verbose=True):
             matches.append(ix)
     return matches
 
-def grep_all(items, name, verbose=True):
+def grep_all(items, query_string, verbose=True, min_level=0, max_level=50, min_value=-10,area=''):
     """Intial method for grepping the database"""
     matches = []
     for ix, item in enumerate(items):
         for attrib in item:
-            if name.lower() in str(item[attrib]).lower():
+            if (query_string.lower() in str(item[attrib]).lower()
+                and min_level<=safe_int(item['LEVEL'],default_value=-1)<= max_level
+                and item['VALUE']>= min_value) and area.lower() in item['AREA'].lower():
                 if verbose:
                     print("\nMatch ID: {}".format(ix),end='')
                     print_item(item)
@@ -395,14 +405,16 @@ def safe_int_valuation(object):
             value = int(re.findall(r"[\d']+", object)[0])
     return value
 
-def safe_int(object):
+def safe_int(object, default_value=''):
     """Try to deal with cases where the database passes us strings instead of ints"""
     value = ''
     try:
         value = int(object)
     except ValueError as verr:
-        value = ''
+        value = default_value
     return value
+
+
 
 # -------- PICKLE SECTION -----------
 def save_db(items,outfile=''):
@@ -412,11 +424,11 @@ def save_db(items,outfile=''):
     with open(outfile, 'wb') as fp:
         pickle.dump(items, fp)
 
-def load_db(outfile=''):
+def load_db(infile=''):
     """Save the database to pkl format"""
-    if outfile == '':
-        outfile = 'RoD_Database.pkl'
-    with open(outfile, 'rb') as fp:
+    if infile == '':
+        infile = 'RoD_Database.pkl'
+    with open(infile, 'rb') as fp:
         items = pickle.load(fp)
     return items
 
